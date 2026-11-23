@@ -60,7 +60,18 @@ def main():
         try:
             connection = pika.BlockingConnection(pika.URLParameters(RABBITMQ_URL))
             ch = connection.channel()
-            ch.queue_declare(queue=QUEUE, durable=True)
+            # Create the dead-letter queue for rejected messages.
+            ch.queue_declare(queue='jobs.dead', durable=True)
+            
+            # Configure the main queue to route rejected messages to the DLQ.
+            ch.queue_declare(
+                queue=QUEUE,
+                durable=True,
+                arguments={
+                    'x-dead-letter-exchange': '',
+                    'x-dead-letter-routing-key': 'jobs.dead'
+                }
+            )
             ch.basic_qos(prefetch_count=1)
             ch.basic_consume(queue=QUEUE, on_message_callback=process, auto_ack=False)
             print('Worker listening for jobs (Ctrl+C to stop)', flush=True)
